@@ -1,0 +1,9 @@
+# Build artifacts
+ViperLink.zip
+
+# Editor / OS noise
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,19 @@
+/*
+ * ViperLink injected-link styling.
+ * Match Schoology's native link look (blue, hover-underline) so the
+ * extension feels like a native part of the page.
+ */
+a.viperlink-link,
+a.viperlink-link:link,
+a.viperlink-link:visited {
+  color: #1976d2;
+  text-decoration: none;
+  cursor: pointer;
+  word-break: break-word;
+}
+
+a.viperlink-link:hover,
+a.viperlink-link:focus {
+  text-decoration: underline;
+  color: #0d47a1;
+}

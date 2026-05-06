@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ViperLink — Clickable links for Schoology</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A tiny browser extension that turns plain-text URLs in Schoology bios, posts, and descriptions into clickable links. Chrome, Edge, Firefox, Brave.">
+    <meta property="og:title" content="ViperLink for Schoology">
+    <meta property="og:description" content="Schoology shows links as plain text. ViperLink fixes that.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/ViperShard/ViperLink/main/icons/vipershard-logo.png">
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/ViperShard/ViperLink/main/icons/favicon.png">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #08080f;
+            --bg-2: #0d0d18;
+            --text: rgba(255, 255, 255, 0.96);
+            --text-dim: rgba(255, 255, 255, 0.62);
+            --text-faint: rgba(255, 255, 255, 0.38);
+            --line: rgba(255, 255, 255, 0.08);
+            --line-bright: rgba(255, 255, 255, 0.16);
+            --glass: rgba(255, 255, 255, 0.04);
+            --gold: #c9a36b;
+            --gold-soft: rgba(201, 163, 107, 0.1);
+            --gold-bright: #e0bc8a;
+        }
+
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        a { color: inherit; text-decoration: none; }
+
+        .nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            padding: 18px 36px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(8, 8, 15, 0.6);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border-bottom: 1px solid var(--line);
+        }
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+        }
+        .nav-brand img { width: 22px; height: 22px; object-fit: contain; }
+        .nav-links { display: flex; gap: 28px; font-size: 13.5px; color: var(--text-dim); }
+        .nav-links a { transition: color 0.15s; }
+        .nav-links a:hover { color: var(--text); }
+
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 120px 24px 80px;
+            text-align: center;
+            position: relative;
+        }
+        .hero::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 30% 20%, rgba(201, 163, 107, 0.08), transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(100, 130, 200, 0.06), transparent 50%);
+            pointer-events: none;
+        }
+        .hero-eyebrow {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2.5px;
+            color: var(--gold);
+            margin-bottom: 18px;
+        }
+        .hero h1 {
+            font-size: clamp(40px, 7vw, 76px);
+            font-weight: 700;
+            letter-spacing: -2px;
+            line-height: 1.05;
+            max-width: 900px;
+            margin-bottom: 22px;
+        }
+        .hero h1 em {
+            font-style: normal;
+            background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .hero p {
+            font-size: clamp(16px, 1.6vw, 19px);
+            color: var(--text-dim);
+            max-width: 620px;
+            margin-bottom: 40px;
+        }
+        .cta-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+        .btn {
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: -0.1px;
+            transition: all 0.18s ease;
+            border: 1px solid transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--gold), #b8915a);
+            color: #1a1408;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(201, 163, 107, 0.25);
+        }
+        .btn-ghost {
+            background: var(--glass);
+            border-color: var(--line-bright);
+            color: var(--text);
+        }
+        .btn-ghost:hover { background: rgba(255, 255, 255, 0.07); }
+
+        .demo {
+            margin-top: 64px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            max-width: 880px;
+            width: 100%;
+        }
+        @media (max-width: 720px) { .demo { grid-template-columns: 1fr; } }
+        .demo-card {
+            background: var(--glass);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 22px 24px;
+            text-align: left;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+        .demo-card h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.6px;
+            color: var(--text-faint);
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .demo-bad { color: var(--text-dim); }
+        .demo-good a {
+            color: #6ea8ff;
+            text-decoration: underline;
+            text-decoration-color: rgba(110, 168, 255, 0.4);
+        }
+
+        section.body {
+            padding: 80px 24px;
+            max-width: 880px;
+            margin: 0 auto;
+        }
+        section.body + section.body { padding-top: 0; }
+        section.body h2 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.6px;
+            margin-bottom: 22px;
+        }
+        section.body h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 26px;
+            margin-bottom: 10px;
+            color: var(--gold);
+        }
+        section.body p, section.body li {
+            color: var(--text-dim);
+            font-size: 15px;
+        }
+        section.body ol, section.body ul { padding-left: 22px; margin-bottom: 12px; }
+        section.body li { margin-bottom: 6px; }
+        section.body code {
+            font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+            font-size: 13px;
+            background: var(--glass);
+            border: 1px solid var(--line);
+            padding: 1px 7px;
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .install-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .install-card {
+            background: var(--glass);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 22px;
+        }
+        .install-card h3 { margin-top: 0; }
+
+        footer {
+            padding: 40px 24px 60px;
+            border-top: 1px solid var(--line);
+            text-align: center;
+            color: var(--text-faint);
+            font-size: 13px;
+        }
+        footer a { color: var(--text-dim); }
+        footer a:hover { color: var(--gold); }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-brand">
+            <img src="https://raw.githubusercontent.com/ViperShard/ViperLink/main/icons/vipershard-logo.png" alt="">
+            ViperLink
+        </div>
+        <div class="nav-links">
+            <a href="#install">Install</a>
+            <a href="#how">How it works</a>
+            <a href="https://github.com/ViperShard/ViperLink">GitHub</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-eyebrow">A ViperShard extension</div>
+        <h1>Clickable links<br>in <em>Schoology</em>.</h1>
+        <p>Schoology shows links in bios, descriptions, and posts as plain unclickable text. ViperLink quietly fixes that — across every browser that supports extensions.</p>
+        <div class="cta-row">
+            <a class="btn btn-primary" href="https://github.com/ViperShard/ViperLink/archive/refs/heads/main.zip">Download .zip</a>
+            <a class="btn btn-ghost" href="#install">Install instructions</a>
+        </div>
+
+        <div class="demo">
+            <div class="demo-card">
+                <h3>Before</h3>
+                <p class="demo-bad">Welcome! Find me on https://example.com/teacher and the syllabus at www.school.edu/eng201.</p>
+            </div>
+            <div class="demo-card">
+                <h3>After</h3>
+                <p class="demo-good">Welcome! Find me on <a href="#">https://example.com/teacher</a> and the syllabus at <a href="#">www.school.edu/eng201</a>.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="body" id="install">
+        <h2>Install</h2>
+        <p>The extension is one folder of plain JavaScript — no build step. Manifest V3, works on every modern browser that ships extensions.</p>
+
+        <div class="install-grid">
+            <div class="install-card">
+                <h3>Chrome / Edge / Brave / Opera / Arc</h3>
+                <ol>
+                    <li>Download the <a href="https://github.com/ViperShard/ViperLink/archive/refs/heads/main.zip">latest .zip</a> and unzip it.</li>
+                    <li>Open <code>chrome://extensions</code> (or <code>edge://extensions</code>, etc.).</li>
+                    <li>Toggle <strong>Developer mode</strong> on.</li>
+                    <li>Click <strong>Load unpacked</strong> and pick the <code>ViperLink</code> folder.</li>
+                </ol>
+            </div>
+            <div class="install-card">
+                <h3>Firefox</h3>
+                <ol>
+                    <li>Visit <code>about:debugging#/runtime/this-firefox</code>.</li>
+                    <li>Click <strong>Load Temporary Add-on…</strong></li>
+                    <li>Select the <code>manifest.json</code> file inside the unzipped folder.</li>
+                </ol>
+                <p style="margin-top:10px;font-size:13px;color:var(--text-faint);">Temporary add-ons unload when Firefox restarts. Permanent install requires AMO signing.</p>
+            </div>
+            <div class="install-card">
+                <h3>Safari</h3>
+                <p>Use Apple's <code>safari-web-extension-converter</code> (Xcode tool) to convert the folder. The source is standard MV3 and converts without code changes.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="body" id="how">
+        <h2>How it works</h2>
+        <p>A single content script runs on <code>*.schoology.com</code>. It walks visible text nodes and replaces matched URLs (<code>https://…</code>, <code>http://…</code>, bare <code>www.…</code>) with real anchor tags. A <code>MutationObserver</code> picks up content that Schoology loads via AJAX, so feed posts, profile drawers, and modal dialogs all linkify as they appear.</p>
+
+        <h3>What it skips</h3>
+        <ul>
+            <li>Existing links, buttons, form fields, <code>&lt;code&gt;</code>, <code>&lt;pre&gt;</code>, and SVG.</li>
+            <li>Anything <code>contenteditable</code> — including TinyMCE, CKEditor, Froala, Quill, CodeMirror, and Monaco — so it never interferes while you're typing.</li>
+            <li>Elements explicitly tagged <code>data-viperlink-skip</code>.</li>
+        </ul>
+
+        <h3>What it requires</h3>
+        <p>Nothing. No permissions beyond Schoology page access, no network calls, no storage, no telemetry. The whole extension is one content script that mutates the DOM.</p>
+    </section>
+
+    <footer>
+        <p>Part of the <a href="https://github.com/ViperShard">ViperShard</a> family · <a href="https://github.com/ViperShard/ViperLink">Source on GitHub</a> · MIT licensed</p>
+    </footer>
+</body>
+</html>
