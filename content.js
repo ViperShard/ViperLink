@@ -26,18 +26,38 @@
     "[data-viperlink-skip]"
   ].join(",");
 
-  // URL pattern: explicit http(s) OR www.* domain. Capture greedy chars,
-  // then trim trailing punctuation (which is almost never part of the URL).
-  const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"'` ]+/gi;
-  const TRIM_TAIL = /[.,;:!?)\]}>'"`*_~]+$/;
+  // Common TLDs accepted for bare-domain matches (no scheme, no www).
+  // Scheme'd URLs and www.* don't require this list.
+  const TLDS = (
+    "com|net|org|edu|gov|mil|int|io|co|uk|us|ca|au|de|fr|jp|in|cn|nl|it|es|" +
+    "se|no|fi|dk|pl|ru|br|mx|kr|tw|hk|sg|nz|ie|ch|at|be|pt|gr|cz|tr|il|za|" +
+    "ar|cl|ph|my|th|id|vn|ae|sa|eg|ng|ke|ly|gl|me|tv|gg|fm|sh|ai|app|dev|" +
+    "info|biz|store|online|site|blog|music|tech|design|news|pro|life|live|" +
+    "wiki|media|fyi|xyz|page|cc|club|email|family|games|host|link|press|" +
+    "review|space|today|world|zone|ws|tube|stream|video|cool|fun|run|chat"
+  );
 
-  // Track URLs with unmatched opening parens so we keep `)` when balanced.
+  // Three branches:
+  //   1. Explicit scheme:  https?://...
+  //   2. www-prefixed:     www.foo.bar(/path)?
+  //   3. Bare domain:      foo.bar.{tld}(/path)?  (only if TLD is known)
+  const URL_RE = new RegExp(
+    "\\bhttps?:\\/\\/[^\\s<>\"'\\[\\]]+" +
+    "|" +
+    "\\bwww\\.[a-z0-9-]+(?:\\.[a-z0-9-]+)+(?:\\/[^\\s<>\"'\\[\\]]*)?" +
+    "|" +
+    "\\b[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)*\\.(?:" + TLDS + ")\\b(?:\\/[^\\s<>\"'\\[\\]]*)?",
+    "gi"
+  );
+
+  // Cheap pre-check: any letter followed by a dot followed by 2+ letters.
+  const HAS_URL_HINT = /[a-z]\.[a-z]{2,}/i;
+
   function trimTrailing(url) {
     let out = url;
-    // Iteratively strip trailing punctuation, but keep balanced parens.
     while (out.length > 0) {
       const last = out[out.length - 1];
-      if (!/[.,;:!?)\]}>'"`*_~]/.test(last)) break;
+      if (!/[.,;:!?)\]}>'"*_~]/.test(last)) break;
       if (last === ")") {
         const opens = (out.match(/\(/g) || []).length;
         const closes = (out.match(/\)/g) || []).length;
@@ -57,7 +77,6 @@
     let n = node.parentNode;
     while (n && n.nodeType === 1) {
       if (SKIP_TAGS.has(n.nodeName)) return true;
-      // Element.matches is supported everywhere we care about.
       if (n.matches && n.matches(SKIP_SELECTORS)) return true;
       n = n.parentNode;
     }
@@ -72,14 +91,14 @@
     a.rel = "noopener noreferrer ugc";
     a.className = "viperlink-link";
     a.setAttribute("data-viperlink", "1");
-    // Defensive: stop Schoology's delegated handlers from hijacking our click.
     a.addEventListener("click", (e) => e.stopPropagation(), true);
     return a;
   }
 
   function processTextNode(textNode) {
     const text = textNode.nodeValue;
-    if (!text || text.length < 8) return; // shortest plausible: "a.bc/d" — but require URL_RE match anyway
+    if (!text || text.length < 4) return;
+    if (!HAS_URL_HINT.test(text)) return;
     URL_RE.lastIndex = 0;
     if (!URL_RE.test(text)) return;
     if (isSkippableAncestor(textNode)) return;
@@ -91,11 +110,17 @@
     let replaced = false;
 
     while ((match = URL_RE.exec(text)) !== null) {
-      const raw = match[0];
-      const url = trimTrailing(raw);
+      const start = match.index;
+
+      // Skip emails: "user@example.com" — bare-domain branch must not fire.
+      if (start > 0 && text[start - 1] === "@") {
+        URL_RE.lastIndex = start + match[0].length;
+        continue;
+      }
+
+      const url = trimTrailing(match[0]);
       if (!url || url.length < 4) continue;
 
-      const start = match.index;
       const end = start + url.length;
 
       if (start > lastIndex) {
@@ -107,8 +132,6 @@
 
       lastIndex = end;
       replaced = true;
-
-      // Reset regex cursor in case we trimmed punctuation off the end.
       URL_RE.lastIndex = end;
     }
 
@@ -123,7 +146,7 @@
   function collectTextNodes(root) {
     const out = [];
     if (!root) return out;
-    if (root.nodeType === 3) { // Text
+    if (root.nodeType === 3) {
       out.push(root);
       return out;
     }
@@ -132,14 +155,8 @@
     }
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
-        if (!node.nodeValue || !/[a-z]/i.test(node.nodeValue)) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        // Quick pre-check: must contain "://", "www.", or a literal "."
-        // (We still call URL_RE later — this is just to skip cheaply.)
-        if (!/(https?:\/\/|www\.)/i.test(node.nodeValue)) {
-          return NodeFilter.FILTER_REJECT;
-        }
+        if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
+        if (!HAS_URL_HINT.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
     });
@@ -151,13 +168,10 @@
   function scan(root) {
     const nodes = collectTextNodes(root);
     for (const n of nodes) {
-      // Node may have been detached by a prior replace this batch — skip.
       if (!n.parentNode) continue;
       processTextNode(n);
     }
   }
-
-  // --- Run once at idle, then watch for AJAX-loaded content ---
 
   let pending = new Set();
   let scheduled = false;
@@ -167,7 +181,6 @@
     const batch = pending;
     pending = new Set();
     for (const root of batch) {
-      // Roots may have been detached.
       if (root.nodeType === 1 && !document.contains(root)) continue;
       scan(root);
     }
@@ -193,7 +206,6 @@
         if (m.type === "childList") {
           for (const node of m.addedNodes) {
             if (node.nodeType === 1) {
-              // Don't reprocess our own injected links.
               if (node.nodeName === "A" && node.dataset && node.dataset.viperlink === "1") continue;
               schedule(node);
             } else if (node.nodeType === 3) {
