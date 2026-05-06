@@ -10,7 +10,19 @@ A tiny browser extension that turns plain-text URLs in **Schoology** bios, cours
 
 ## How it works
 
-A content script runs on `*.schoology.com`, walks visible text nodes, and replaces matched URLs (`https://…`, `http://…`, and bare `www.…`) with `<a target="_blank" rel="noopener noreferrer">`. A `MutationObserver` re-scans content that Schoology loads via AJAX (feed pulls, profile drawers, etc.).
+A content script runs on Schoology (including custom-domain installs), walks visible text nodes, and replaces matched URLs with `<a target="_blank" rel="noopener noreferrer">`. A `MutationObserver` re-scans content that Schoology loads via AJAX (feed pulls, profile drawers, etc.).
+
+**What it matches:**
+
+- Explicit URLs — `https://example.com/path`, `http://example.com`
+- `www.` URLs — `www.example.com/path`
+- Bare domains with a known TLD — `youtu.be/abc`, `tinyurl.com/freebird`, `instagram.com/handle`, `spoti.fi/track`, etc.
+
+**What it deliberately won't touch:**
+
+- Email addresses (`name@example.com` — the `@` guard skips bare-domain matching)
+- Version numbers like `1.0.5` or `v2.4` (regex requires letter start)
+- Made-up TLDs like `something.notatld` (TLD must be on the whitelist)
 
 To stay safe it skips:
 

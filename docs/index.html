@@ -297,11 +297,21 @@
 
     <section class="body" id="how">
         <h2>How it works</h2>
-        <p>A single content script runs on <code>*.schoology.com</code>. It walks visible text nodes and replaces matched URLs (<code>https://…</code>, <code>http://…</code>, bare <code>www.…</code>) with real anchor tags. A <code>MutationObserver</code> picks up content that Schoology loads via AJAX, so feed posts, profile drawers, and modal dialogs all linkify as they appear.</p>
+        <p>A single content script runs on Schoology (including custom-domain installs). It walks visible text nodes and replaces matched URLs with real anchor tags. A <code>MutationObserver</code> picks up content that Schoology loads via AJAX, so feed posts, profile drawers, and modal dialogs all linkify as they appear.</p>
 
-        <h3>What it skips</h3>
+        <h3>What it matches</h3>
         <ul>
-            <li>Existing links, buttons, form fields, <code>&lt;code&gt;</code>, <code>&lt;pre&gt;</code>, and SVG.</li>
+            <li>Explicit URLs — <code>https://example.com/path</code>, <code>http://example.com</code></li>
+            <li><code>www.</code> URLs — <code>www.example.com/path</code></li>
+            <li>Bare domains with a known TLD — <code>youtu.be/abc</code>, <code>tinyurl.com/freebird</code>, <code>instagram.com/handle</code>, <code>spoti.fi/track</code></li>
+        </ul>
+
+        <h3>What it deliberately won't touch</h3>
+        <ul>
+            <li>Email addresses — <code>name@example.com</code> stays plain (the <code>@</code> guard skips bare-domain matching).</li>
+            <li>Version numbers like <code>1.0.5</code> or <code>v2.4</code> (regex requires a letter at the start).</li>
+            <li>Made-up TLDs — <code>something.notatld</code> is left alone.</li>
+            <li>Existing links, buttons, form fields, <code>&lt;code&gt;</code>, <code>&lt;pre&gt;</code>, SVG.</li>
             <li>Anything <code>contenteditable</code> — including TinyMCE, CKEditor, Froala, Quill, CodeMirror, and Monaco — so it never interferes while you're typing.</li>
             <li>Elements explicitly tagged <code>data-viperlink-skip</code>.</li>
         </ul>
