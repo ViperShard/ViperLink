@@ -245,11 +245,11 @@
     </nav>
 
     <section class="hero">
-        <div class="hero-eyebrow">A ViperShard extension</div>
+        <div class="hero-eyebrow">A ViperShard extension · <span data-version-label>v1.1.0</span></div>
         <h1>Clickable links<br>in <em>Schoology</em>.</h1>
         <p>Schoology shows links in bios, descriptions, and posts as plain unclickable text. ViperLink quietly fixes that — across every browser that supports extensions.</p>
         <div class="cta-row">
-            <a class="btn btn-primary" href="https://github.com/ViperShard/ViperLink/archive/refs/heads/main.zip">Download .zip</a>
+            <a class="btn btn-primary" href="https://github.com/ViperShard/ViperLink/archive/refs/heads/main.zip">Download <span data-version-label>v1.1.0</span> .zip</a>
             <a class="btn btn-ghost" href="#install">Install instructions</a>
         </div>
 
@@ -273,7 +273,7 @@
             <div class="install-card">
                 <h3>Chrome / Edge / Brave / Opera / Arc</h3>
                 <ol>
-                    <li>Download the <a href="https://github.com/ViperShard/ViperLink/archive/refs/heads/main.zip">latest .zip</a> and unzip it.</li>
+                    <li>Download the <a href="https://github.com/ViperShard/ViperLink/archive/refs/heads/main.zip">latest .zip (<span data-version-label>v1.1.0</span>)</a> and unzip it.</li>
                     <li>Open <code>chrome://extensions</code> (or <code>edge://extensions</code>, etc.).</li>
                     <li>Toggle <strong>Developer mode</strong> on.</li>
                     <li>Click <strong>Load unpacked</strong> and pick the <code>ViperLink</code> folder.</li>
@@ -323,5 +323,18 @@
     <footer>
         <p>Part of the <a href="https://github.com/ViperShard">ViperShard</a> family · <a href="https://github.com/ViperShard/ViperLink">Source on GitHub</a> · MIT licensed</p>
     </footer>
+
+    <script>
+        // Pull the live version from manifest.json on main so the page is always
+        // accurate after a release bump without editing this HTML.
+        fetch("https://raw.githubusercontent.com/ViperShard/ViperLink/main/manifest.json", { cache: "no-cache" })
+            .then(r => r.ok ? r.json() : null)
+            .then(m => {
+                if (!m || !m.version) return;
+                const label = "v" + m.version;
+                document.querySelectorAll("[data-version-label]").forEach(el => { el.textContent = label; });
+            })
+            .catch(() => { /* leave the static fallback in place */ });
+    </script>
 </body>
 </html>
